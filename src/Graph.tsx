@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, HTMLAttributes } from 'react';
 import { Table } from '@finos/perspective';
 import { ServerRespond } from './DataStreamer';
 import './Graph.css';
@@ -14,10 +14,25 @@ interface IProps {
  * Perspective library adds load to HTMLElement prototype.
  * This interface acts as a wrapper for Typescript compiler.
  */
-interface PerspectiveViewerElement {
+interface PerspectiveViewerElement extends HTMLElement {
   load: (table: Table) => void,
 }
 
+interface PerspectiveViewerProps extends React.HTMLAttributes<HTMLElement> {
+  view?: string;
+  'column-pivots'?: string;
+  'row-pivots'?: string;
+  columns?: string;
+  aggregates?: string;
+}
+
+declare global {
+  namespace  JSX {
+    interface  IntrinsicElements {
+      'perspective-viewer': PerspectiveViewerProps;
+    }
+  }
+}
 /**
  * React component that renders Perspective based on data
  * parsed from its parent through data property.
@@ -25,10 +40,6 @@ interface PerspectiveViewerElement {
 class Graph extends Component<IProps, {}> {
   // Perspective table
   table: Table | undefined;
-
-  render() {
-    return React.createElement('perspective-viewer');
-  }
 
   componentDidMount() {
     // Get element to attach the table from the DOM.
@@ -52,21 +63,35 @@ class Graph extends Component<IProps, {}> {
     }
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps: IProps) {
     // Everytime the data props is updated, insert the data into Perspective table
-    if (this.table) {
+    if (prevProps.data !== this.props.data && this.table) {
+      const newData = this.props.data.filter((el, index, self) =>
+      index === self.findIndex((t) => (
+          t.stock === el.stock && t.timestamp === el.timestamp
+          ))
+      );
       // As part of the task, you need to fix the way we update the data props to
       // avoid inserting duplicated entries into Perspective table again.
-      this.table.update(this.props.data.map((el: any) => {
+      this.table.update(newData.map((el: any) => ({
         // Format the data from ServerRespond to the schema
-        return {
-          stock: el.stock,
-          top_ask_price: el.top_ask && el.top_ask.price || 0,
-          top_bid_price: el.top_bid && el.top_bid.price || 0,
-          timestamp: el.timestamp,
-        };
-      }));
+        stock: el.stock,
+        top_ask_price: el.top_ask && el.top_ask.price || 0,
+        top_bid_price: el.top_bid && el.top_bid.price || 0,
+        timestamp: el.timestamp,
+      })));
     }
+  }
+  render() {
+    return (
+        <perspective-viewer
+          view = "y_line"
+          column-pivots = '["stock"]'
+          row-pivots='["timestamp"]'
+          columns='["top_ask_price"]'
+          aggregates='{"stock":"distinct count", "top_ask_price":"avg", "top_bid_price":"avg", "timestamp":"distinct count"}'
+        />
+    );
   }
 }
 
